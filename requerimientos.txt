@@ -7,3 +7,21 @@ joblib
 matplotlib
 jupyterlab
 streamlit
+
+
+
+
+
+#####################################
+
+
+pip install conda
+
+
+Note: you may need to restart the kernel to use updated packages.
+ERROR: Ignored the following yanked versions: 3.0.6, 3.5.0, 3.7.0, 3.17.0, 4.0.0, 4.0.1, 4.0.2, 4.0.3, 4.0.4, 4.0.5, 4.0.7, 4.0.8, 4.0.9, 4.1.2, 4.1.6, 4.2.6, 4.2.7, 4.3.13, 4.3.16
+ERROR: Could not find a version that satisfies the requirement conda (from versions: none)
+ERROR: No matching distribution found for conda
+
+[notice] A new release of pip is available: 24.0 -> 25.2
+[notice] To update, run: C:\Users\USER\AppData\Local\Microsoft\WindowsApps\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\python.exe -m pip install --upgrade pip

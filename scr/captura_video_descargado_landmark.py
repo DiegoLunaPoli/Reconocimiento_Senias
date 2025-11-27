@@ -29,13 +29,13 @@ import mediapipe as mp
 from tqdm import tqdm
 
 # ---------------------- CONFIGURACIÓN ----------------------
-VIDEOS_DIR   = "videos_proc"           # <-- carpeta con subcarpetas por letra
-DATASET_DIR  = "dataset_landmarks"    # <-- carpeta con CSV por letra (existing)
+VIDEOS_DIR   = r"C:\Users\julia\OneDrive PolitecnicoGrancolombiano\Documentos\U\SEMESTRE 6\SISTEMAS OPERACIONALES\PROG\proyecto\Reconocimiento_Senias\videos_proc"
+DATASET_DIR  = r"C:\Users\julia\OneDrive PolitecnicoGrancolombiano\Documentos\U\SEMESTRE 6\SISTEMAS OPERACIONALES\PROG\proyecto\Reconocimiento_Senias\dataset_landmarks"
 FRAME_STEP   = 3                       # procesar cada N-ésimo frame (reduce carga)
 TARGET_SIZE  = (640, 480)              # ancho, alto (resize)
 DENoISE      = True                    # aplicar denoise
 SAVE_IMAGES  = False                   # guardar frames procesados
-IMAGES_DIR   = "debug_frames"          # si SAVE_IMAGES=True
+IMAGES_DIR   = r"C:\Users\julia\OneDrive PolitecnicoGrancolombiano\Documentos\U\SEMESTRE 6\SISTEMAS OPERACIONALES\PROG\proyecto\Reconocimiento_Senias\debug_frames"
 CAPTURE_TYPE = "video"                 # valor en columna capture_type
 # -----------------------------------------------------------
 
@@ -55,8 +55,6 @@ def denoise_frame(frame):
     return cv2.fastNlMeansDenoisingColored(frame, None, h=10, hColor=10, templateWindowSize=7, searchWindowSize=21)
 
 def equalize_brightness(frame_bgr):
-    
-    # Convertir a YCrCb, equalize Y (luminance), volver a BGR
     img_y_cr_cb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2YCrCb)
     y, cr, cb = cv2.split(img_y_cr_cb)
     y_eq = cv2.equalizeHist(y)
@@ -65,26 +63,21 @@ def equalize_brightness(frame_bgr):
     return bgr_eq
 
 def preprocess_frame(frame_bgr):
-    # frame_bgr: BGR uint8
     f = frame_bgr
-    # Denoise
     if DENoISE:
         try:
             f = denoise_frame(f)
         except Exception:
             pass
-    # Brightness equalization
     try:
         f = equalize_brightness(f)
     except Exception:
         pass
-    # Resize
     f = resize_frame(f, TARGET_SIZE)
     return f
 
 # ---------------------- CSV APPEND ----------------------
 def ensure_csv_with_header(csv_path):
-    # Si no existe el CSV, crea y escribe header
     if not os.path.exists(csv_path):
         os.makedirs(os.path.dirname(csv_path), exist_ok=True)
         with open(csv_path, "w", newline='', encoding='utf-8') as f:
@@ -92,11 +85,8 @@ def ensure_csv_with_header(csv_path):
             writer.writerow(LM_HEADER)
 
 def append_landmark_row(csv_path, time_str, capture_type, landmark_list):
-    """
-    landmark_list: list/iterable de 63 floats (x0,y0,z0, ..., x20,y20,z20)
-    """
-    ensure_csv_with_header(csv_path)
     row = [time_str, capture_type] + [f"{v:.9f}" for v in landmark_list]
+    ensure_csv_with_header(csv_path)
     with open(csv_path, "a", newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
         writer.writerow(row)
@@ -119,7 +109,6 @@ def process_video_file(video_path, out_csv_path, save_images=False, debug_folder
     saved = 0
     pbar = tqdm(total=total_frames//frame_step + 1, desc=Path(video_path).name, unit="step")
     frame_idx = 0
-    saved_idx = 0
 
     while True:
         ret, frame = cap.read()
@@ -131,30 +120,21 @@ def process_video_file(video_path, out_csv_path, save_images=False, debug_folder
             pbar.update(1)
             continue
 
-        # Preprocesamiento
         proc = preprocess_frame(frame)
-
-        # Convertir a RGB para MediaPipe
         image_rgb = cv2.cvtColor(proc, cv2.COLOR_BGR2RGB)
         results = hands.process(image_rgb)
 
         if results.multi_hand_landmarks:
-            # tomar la primera mano
             lm = results.multi_hand_landmarks[0]
-            # construir lista 63 floats
             lm_list = []
             for l in lm.landmark:
                 lm_list.extend([l.x, l.y, l.z])
 
-            # tiempo: timestamp del video en segundos + datetime (ISO) para trazabilidad
             pos_ms = cap.get(cv2.CAP_PROP_POS_MSEC)
             now_iso = datetime.utcnow().isoformat(timespec="seconds") + "Z"
             time_str = f"{now_iso}|{pos_ms/1000:.3f}s"
 
             append_landmark_row(out_csv_path, time_str, CAPTURE_TYPE, lm_list)
-            saved += 1
-            saved_idx += 1
-
             if save_images and debug_folder:
                 os.makedirs(debug_folder, exist_ok=True)
                 out_img = os.path.join(debug_folder, f"{Path(video_path).stem}_f{frame_idx:06d}.jpg")
@@ -166,7 +146,7 @@ def process_video_file(video_path, out_csv_path, save_images=False, debug_folder
     pbar.close()
     hands.close()
     cap.release()
-    return saved
+    return frame_idx
 
 def process_all(videos_dir=VIDEOS_DIR, dataset_dir=DATASET_DIR, frame_step=FRAME_STEP, save_images=SAVE_IMAGES):
     videos_dir = Path(videos_dir)
@@ -176,7 +156,6 @@ def process_all(videos_dir=VIDEOS_DIR, dataset_dir=DATASET_DIR, frame_step=FRAME
         Path(IMAGES_DIR).mkdir(parents=True, exist_ok=True)
 
     total_added = 0
-    # iterar subdirs (cada subdir = label)
     for letter_folder in sorted(videos_dir.iterdir()):
         if not letter_folder.is_dir():
             continue
@@ -184,16 +163,13 @@ def process_all(videos_dir=VIDEOS_DIR, dataset_dir=DATASET_DIR, frame_step=FRAME
         csv_path = dataset_dir / f"{letter}.csv"
         ensure_csv_with_header(str(csv_path))
 
-        # procesar cada video en esa carpeta (ordenado)
         video_files = sorted([p for p in letter_folder.glob("*") if p.suffix.lower() in (".mp4", ".mov", ".mkv", ".avi")])
         if not video_files:
             print(f"[{letter}] no hay videos en {letter_folder}, saltando.")
             continue
 
         print(f"\n=== Procesando letra '{letter}' → {len(video_files)} archivos ===")
-        # procesar cada archivo y añadir
         for vf in video_files:
-            print(f"Procesando archivo: {vf.name}")
             debug_folder = None
             if save_images:
                 debug_folder = os.path.join(IMAGES_DIR, letter)
